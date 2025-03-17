@@ -1,16 +1,7 @@
-using System.ComponentModel.DataAnnotations;
 using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Internal;
 using TheEmployeeAPI;
-using TheEmployeeAPI.Abstractions;
-using TheEmployeeAPI.Employees;
-
-var employees = new List<Employee>
-{
-    new Employee { Id = 1, FirstName = "John", LastName = "Doe" },
-    new Employee { Id = 2, FirstName = "Jane", LastName = "Doe" }
-};
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,14 +13,17 @@ builder.Services.AddSwaggerGen(options =>
     options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "TheEmployeeAPI.xml"));
 });
 builder.Services.AddProblemDetails();
-builder.Services.AddSingleton<IRepository<Employee>, EmployeeRepository>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<FluentValidationFilter>();
 });
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+});
+builder.Services.AddSingleton<ISystemClock, SystemClock>();
 
 builder.Services.AddHttpContextAccessor();
 
@@ -37,7 +31,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    SeedData.Seed(services);
+    MigrateAndSeedData.MigrateAndSeed(services);
 }
 
 // Configure the HTTP request pipeline.

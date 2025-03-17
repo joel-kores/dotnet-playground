@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TheEmployeeAPI;
 
-public class Employee 
+public class Employee : AuditableEntity
 {
     public int Id { get; set; }
     public required string FirstName { get; set; }
@@ -16,24 +16,31 @@ public class Employee
     public string? ZipCode { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Email { get; set; }
-    public List<EmployeeBenefits> Benefits { get; set; } = new List<EmployeeBenefits>();
+    public List<EmployeeBenefit> Benefits { get; set; } = new List<EmployeeBenefit>();
 }
 
+public abstract class AuditableEntity
+{
+    public string? CreatedBy { get; set; }
+    public DateTime? CreatedOn { get; set; }
+    public string? LastModifiedBy { get; set; }
+    public DateTime? LastModifiedOn { get; set; }
+}
 
-public class EmployeeBenefits
+public class Benefit
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string Description { get; set; }
+    public decimal BaseCost { get; set; }
+}
+
+public class EmployeeBenefit
 {
     public int Id { get; set; }
     public int EmployeeId { get; set; }
-    public BenefitType BenefitType { get; set; }
-    public decimal Cost { get; set; }
-    
     public Employee Employee { get; set; } = null!;
-
-}
-
-public enum BenefitType
-{
-    Health,
-    Dental,
-    Vision
+    public int BenefitId { get; set; }
+    public Benefit Benefit { get; set; } = null!;
+    public decimal? CostToEmployee { get; set; }
 }
