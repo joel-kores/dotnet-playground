@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Auth_Practice.Data;
 using Auth_Practice.Entities;
@@ -32,22 +33,72 @@ public class AuthSevice(AppDbContext context, IConfiguration configuration): IAu
         return user;
     }
 
-    public Task<string?> LoginAsync(UserDto request)
+    public async Task<TokenResponseDto?> LoginAsync(UserDto request)
     {
-        var user = context.Users.FirstOrDefault(u => u.Username == request.Username);
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
         if (user is null)
         {
-            return Task.FromResult<string?>(null);
+            return null;
         }
 
         if (new PasswordHasher<User>().VerifyHashedPassword(user, user.PasswordHash, request.Password)
             == PasswordVerificationResult.Failed)
         {
-            return Task.FromResult<string?>(null);
+            return null;
         }
         
-        var token = CreateToken(user);
-        return Task.FromResult(token);
+        return await CreateTokenResponse(user);
+        
+    }
+
+    private async Task<TokenResponseDto> CreateTokenResponse(User user)
+    {
+        var response = new TokenResponseDto
+        {
+            AccessToken = CreateToken(user),
+            RefreshToken = await GenerateAndSaveRefreshTokenAsync(user)
+        };
+        return response;
+    }
+
+    public async Task<TokenResponseDto?> RefreshTokenAsync(RefreshTokenRequestDto request)
+    {
+        var user = await ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
+        if (user is null)
+        {
+            return null;
+        }
+
+        return await CreateTokenResponse(user);
+    }
+
+    private async Task<User?> ValidateRefreshTokenAsync(Guid userId, string refreshToken)
+    {
+        var user = await context.Users.FindAsync(userId);
+        if (user is null || user.RefreshToken != refreshToken ||
+            user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+        {
+            return null;
+        }
+        
+        return user;
+    }
+
+    private string GenerateRefreshToken()
+    {
+        var randomNumber = new byte[32];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomNumber);
+        return Convert.ToBase64String(randomNumber);
+    }
+
+    private async Task<string> GenerateAndSaveRefreshTokenAsync(User user)
+    {
+        var refreshToken = GenerateRefreshToken();
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+        await context.SaveChangesAsync();
+        return refreshToken;
     }
     
     private string CreateToken(User user)
@@ -55,7 +106,8 @@ public class AuthSevice(AppDbContext context, IConfiguration configuration): IAu
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Role, user.Role)
         };
 
         var key = new SymmetricSecurityKey(

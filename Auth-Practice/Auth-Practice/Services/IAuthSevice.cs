@@ -6,5 +6,6 @@ namespace Auth_Practice.Services;
 public interface IAuthSevice
 {
     Task<User?> RegisterAsync(UserDto request);
-    Task<string?> LoginAsync(UserDto request); 
+    Task<TokenResponseDto?> LoginAsync(UserDto request);
+    Task<TokenResponseDto?> RefreshTokenAsync(RefreshTokenRequestDto request);
 }
